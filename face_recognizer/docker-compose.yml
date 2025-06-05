@@ -1,0 +1,66 @@
+version: '2.4'
+
+services:
+  minio:
+    image: "minio/minio"
+    networks:
+      - mysharednetwork
+    hostname: minio
+    container_name: face_recognizer_minio
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: $S3_ACCESS_KEY
+      MINIO_ROOT_PASSWORD: $S3_SECRET_KEY
+    ports:
+      - "9000:9000"
+
+  face_recognizer:
+    depends_on:
+      - minio
+    mem_limit: 16G
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    networks:
+      - mysharednetwork
+    restart: always
+    tty: true
+    ports:
+      - "4446:4446"
+    environment:
+      IS_TEST: $test
+      S3_URL: $S3_URL
+      S3_ACCESS_KEY: $S3_ACCESS_KEY
+      S3_SECRET_KEY: $S3_SECRET_KEY
+      S3_VERIFY_TLS: $S3_VERIFY_TLS
+      FACE_RECOGNIZER_HOST: $FACE_RECOGNIZER_HOST
+      FACE_RECOGNIZER_PORT: $FACE_RECOGNIZER_PORT
+      FACE_INDEX_HOST: $FACE_INDEX_HOST
+      FACE_INDEX_PORT: $FACE_INDEX_PORT
+
+  test:
+    depends_on:
+      - face_recognizer
+    build:
+          context: .
+          dockerfile: docker/Dockerfile
+    networks:
+      - mysharednetwork
+    tty: true
+    environment:
+      FACE_INDEX_PORT: $FACE_INDEX_PORT
+      FACE_INDEX_HOST: $FACE_INDEX_HOST
+      FACE_RECOGNIZER_HOST: $FACE_RECOGNIZER_HOST
+      FACE_RECOGNIZER_PORT: $FACE_RECOGNIZER_PORT
+      IS_TEST: $test
+      S3_URL: $S3_URL
+      S3_ACCESS_KEY: $S3_ACCESS_KEY
+      S3_SECRET_KEY: $S3_SECRET_KEY
+      S3_VERIFY_TLS: $S3_VERIFY_TLS
+      PYTHONPATH: $PYTHONPATH:/face_recognizer_root/tests:/face_recognizer_root
+    command:
+      bash -c "bash face_recognizer_root/tests/run_tests_in_docker.sh"
+
+networks:
+  mysharednetwork:
+    external: true
